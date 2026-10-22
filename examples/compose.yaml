@@ -1,0 +1,64 @@
+# Docker Compose example for scanbridge.
+#
+# Put the Seafile token in a file called .env next to this one (Compose reads it automatically):
+#   SCANBRIDGE_SEAFILE_TOKEN=<library API token, read-write>
+#
+# Network: the printer sends the button press to <host LAN IP>:54925/udp, and the container connects to the printer
+# on TCP 54921 and 443. With bridge networking (as below) the container does not know the LAN address of the host,
+# so SCANBRIDGE_ADVERTISE_IP must be set to it. With network_mode: host (second variant below) it is found
+# automatically.
+services:
+  scanbridge:
+    image: ghcr.io/jesperrezlang/scanbridge:latest
+    container_name: scanbridge
+    restart: unless-stopped
+    # Hardening: scanbridge only writes to /data and to the folders mounted below.
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 128m
+    tmpfs: [/tmp]
+    ports:
+      - "54925:54925/udp"
+    volumes:
+      # Retry queue for files that could not be delivered (and the scans folder if no destination is configured).
+      - scanbridge-data:/data
+      # To also save scans in a folder, mount it and add SCANBRIDGE_LOCAL_PATH: /scans below. The container runs as
+      # uid 10001, which must be allowed to write to the folder.
+      # - /srv/scans:/scans
+    environment:
+      # File names use the container's time zone, which is UTC unless set.
+      TZ: Europe/Stockholm
+      SCANBRIDGE_PRINTER_HOST: 192.0.2.20
+      # The name that appears under Scan -> to PC on the printer (1-15 ASCII characters).
+      SCANBRIDGE_DISPLAY_NAME: SCANBRIDGE
+      # The LAN address of the Docker host.
+      SCANBRIDGE_ADVERTISE_IP: 192.0.2.10
+      SCANBRIDGE_SEAFILE_URL: https://seafile.example.com
+      SCANBRIDGE_SEAFILE_TOKEN: ${SCANBRIDGE_SEAFILE_TOKEN}
+      SCANBRIDGE_SEAFILE_DIRECTORY: /Scans
+
+volumes:
+  scanbridge-data:
+
+# Alternative: several printers, names or destinations from a TOML file (see config.example.toml), on the host
+# network. Replace the service above with:
+#
+# services:
+#   scanbridge:
+#     image: ghcr.io/jesperrezlang/scanbridge:latest
+#     container_name: scanbridge
+#     restart: unless-stopped
+#     read_only: true
+#     cap_drop: [ALL]
+#     security_opt: ["no-new-privileges:true"]
+#     mem_limit: 128m
+#     tmpfs: [/tmp]
+#     network_mode: host            # no "ports" section: the container listens on the host's UDP 54925 directly
+#     volumes:
+#       - scanbridge-data:/data
+#       - ./config.toml:/config/config.toml:ro
+#     environment:
+#       TZ: Europe/Stockholm
+#       SCANBRIDGE_CONFIG: /config/config.toml
+#       SCANBRIDGE_SEAFILE_TOKEN: ${SCANBRIDGE_SEAFILE_TOKEN}

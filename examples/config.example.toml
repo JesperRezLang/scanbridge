@@ -1,0 +1,123 @@
+# scanbridge configuration file, for setups with several printers, names or destinations.
+#
+# Use it with:   python -m scanbridge --config config.toml
+#          or:   SCANBRIDGE_CONFIG=/config/config.toml
+# Check it with: python -m scanbridge --check --config config.toml
+#
+# Precedence: built-in defaults < this file < environment variables. A SCANBRIDGE_* variable always wins over the
+# same setting here (for example the Docker image sets SCANBRIDGE_DATA_DIR=/data, which overrides data_dir below).
+# Unknown settings are an error. Secrets are better kept out of this file: set SCANBRIDGE_PRINTER_PASSWORD and
+# SCANBRIDGE_SEAFILE_TOKEN (or the matching *_FILE variables) instead; they override the values below.
+
+# --- Global settings -----------------------------------------------------------------------------------------------
+
+# Where scanbridge keeps its own files. The retry queue lives in <data_dir>/queue/<destination>/.
+# If no destination is configured at all, scans are saved in <data_dir>/scans.
+data_dir = "./data"
+
+# DEBUG, INFO, WARNING, ERROR or CRITICAL.
+log_level = "INFO"
+
+# Seconds between attempts to deliver files that are waiting in the retry queue.
+retry_interval = 300
+
+# The address of this host as the printer should see it. Leave it out to let scanbridge pick the address it uses
+# on the route to the printer. Set it when running in Docker with bridge networking (the container cannot know the
+# LAN address of the host). Can be overridden per printer.
+# advertise_ip = "192.0.2.10"
+
+# --- Printers ------------------------------------------------------------------------------------------------------
+
+[[printers]]
+host = "192.0.2.20"          # required: IP address or host name of the printer
+name = "Office"              # label for logs and the {printer} file name field (default: the host)
+driver = "brother"           # the only driver at the moment
+username = "Public"          # web interface login, used to register names in the printer's "Scan to PC" list
+password = "0000"            # (the printer's factory defaults; set SCANBRIDGE_PRINTER_PASSWORD if you changed it)
+# advertise_ip = "192.0.2.10"
+register_duration = 360      # seconds a registration lasts; it is renewed every register_duration / 2 seconds
+
+# Each [[printers.targets]] is one name in the printer's "Scan to PC" list. The name is 1-15 ASCII characters
+# without " or ;. If a printer has no targets, one target named "SCANBRIDGE" is created.
+[[printers.targets]]
+name = "ARCHIVE"
+# Destinations by name, as a list. If omitted, the scan goes to every configured destination.
+destinations = ["seafile", "local"]
+# File name without extension (.pdf or .jpg is added). Fields: {date:<strftime format>}, {target}, {function}
+# (file, image, ocr or email) and {printer}. Characters / and \ are replaced with _.
+filename = "Scan_{date:%Y-%m-%d_%H%M%S}"
+
+# Scan settings per panel function (file, image, ocr, email), optional. Only the keys you give replace the defaults:
+# file, ocr and email -> pdf, image -> jpg, all 300 dpi in colour.
+#   format = "pdf" | "jpg"       dpi = 100 | 200 | 300 | 600       color = "color" | "gray"
+# Only 300 dpi colour is verified on hardware; the other values follow Brother's protocol and should work.
+# The same can be set with SCANBRIDGE_PROFILE_<FUNCTION>_<KEY>, e.g. SCANBRIDGE_PROFILE_FILE_DPI=200 (this applies
+# to the first target of the first printer only).
+# [printers.targets.profiles.file]
+# dpi = 200
+# color = "gray"
+# [printers.targets.profiles.image]
+# dpi = 600
+
+[[printers.targets]]
+name = "NAS"
+destinations = ["nas"]
+filename = "{date:%Y%m%d-%H%M%S}_{function}"
+
+[[printers.targets]]
+name = "EVERYWHERE"
+destinations = ["seafile", "local", "nas"]
+filename = "{printer}_{target}_{date:%Y-%m-%d_%H%M%S}"
+
+# A second printer. Every printer needs its own host; display names only have to be unique within a printer.
+# Note that all printers share the same UDP port 54925 on this host.
+# [[printers]]
+# host = "192.0.2.21"
+# name = "Warehouse"
+#
+# [[printers.targets]]
+# name = "WAREHOUSE"
+# destinations = ["nas"]
+
+# --- Destinations --------------------------------------------------------------------------------------------------
+# [destinations.<name>] defines a destination. `type` is "local", "seafile", "webdav", "paperless" or "ftp"; if it
+# is left out the name is used as the type, so [destinations.local] and [destinations.seafile] need no type.
+# All types and options: docs/destinations.md.
+# Each option can be set with SCANBRIDGE_<NAME>_<OPTION>, for example SCANBRIDGE_NAS_PATH.
+# A destination name may contain letters, digits, - and _ (not "printer" or "profile").
+
+# A folder. In Docker, mount the folder as a volume and give the path inside the container.
+[destinations.local]
+path = "/scans"
+
+# A second folder, for example a network share (SMB, NFS) mounted on the host and passed to the container.
+[destinations.nas]
+type = "local"
+path = "/mnt/nas/scans"
+
+# A Seafile library, uploaded with a library API token (Seafile 9 or later).
+# Create the token in the library: Advanced -> API Token, permission read-write.
+[destinations.seafile]
+url = "https://seafile.example.com"
+token = "replace-with-library-api-token"   # better: SCANBRIDGE_SEAFILE_TOKEN or SCANBRIDGE_SEAFILE_TOKEN_FILE
+directory = "/Scans"     # folder inside the library (default "/"); create it in Seafile first
+
+# A WebDAV folder, here Nextcloud with an app password (Settings -> Security -> Devices & sessions).
+# [destinations.nextcloud]
+# type = "webdav"
+# url = "https://cloud.example.com/remote.php/dav/files/alice/Scans"
+# username = "alice"
+# password = "replace-with-app-password"   # better: SCANBRIDGE_NEXTCLOUD_PASSWORD_FILE
+
+# Paperless-ngx. Tags, correspondent and document type are numeric IDs, written as text.
+# [destinations.paperless]
+# url = "https://paperless.example.com"
+# token = "replace-with-api-token"         # better: SCANBRIDGE_PAPERLESS_TOKEN_FILE
+# tags = "3,7"
+
+# An FTP server, with explicit FTPS (TLS) unless tls = false.
+# [destinations.ftp]
+# host = "ftp.example.com"
+# username = "scanner"
+# password = "replace-with-password"       # better: SCANBRIDGE_FTP_PASSWORD_FILE
+# directory = "/scans"

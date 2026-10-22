@@ -1,0 +1,12 @@
+# Local research material: decompiled vendor code, tools and packet captures (they may contain scanned documents)
+/tools/
+/decompiled/
+/recon/*.etl
+/recon/*.pcapng
+/recon/brother-scan/
+/recon/test-scans/
+/recon/*.xml
+/poc/skey_events.log
+__pycache__/
+.ruff_cache/
+/data/
