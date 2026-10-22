@@ -1,5 +1,5 @@
 # Scan button on Brother printers -> files. Python standard library only.
-FROM python:3.13.9-alpine3.22
+FROM python:3.14.5-alpine3.22
 
 WORKDIR /app
 COPY scanbridge ./scanbridge
